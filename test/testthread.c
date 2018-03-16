@@ -47,6 +47,8 @@ int SDLCALL
 ThreadFunc(void *data)
 {
     SDL_ThreadPriority prio = SDL_THREAD_PRIORITY_NORMAL;
+    SDL_ThreadWrapper *wrapper = SDL_CreateThreadWrapper();
+    SDL_Thread *thread = SDL_GetThread(wrapper);
 
     SDL_TLSSet(tls, "baby thread", NULL);
     SDL_Log("Started thread %s: My thread id is %lu, thread data = %s\n",
@@ -55,13 +57,27 @@ ThreadFunc(void *data)
         SDL_Log("Thread '%s' is alive!\n", (char *) data);
 
         if (testprio) {
-            SDL_Log("SDL_SetThreadPriority(%s):%d\n", getprioritystr(prio), SDL_SetThreadPriority(prio));
+            SDL_ThreadPriority prio0;
+            SDL_ThreadPriority prio2;
+            int ret0 = SDL_GetThreadPtrPriority(thread, &prio0);
+            int ret = -SDL_SetThreadPtrPriority(thread, prio);
+            int ret2 = SDL_GetThreadPtrPriority(thread, &prio2);
+
+            SDL_Log("SDL_GetThreadPriority(%s):%d (cur)\n"
+                    "  SDL_SetThreadPriority(%s):%d (set)\n"
+                    "  SDL_GetThreadPriority(%s):%d (get)\n",
+                    getprioritystr(prio0), ret0,
+                    getprioritystr(prio), ret,
+                    getprioritystr(prio2), ret2);
             if (++prio > SDL_THREAD_PRIORITY_HIGH)
                 prio = SDL_THREAD_PRIORITY_LOW;
         }
 
         SDL_Delay(1 * 1000);
     }
+
+    SDL_FreeThreadWrapper(wrapper);
+
     SDL_Log("Thread '%s' exiting!\n", (char *) data);
     return (0);
 }
@@ -108,6 +124,13 @@ main(int argc, char *argv[])
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't create thread: %s\n", SDL_GetError());
         quit(1);
     }
+
+    if (testprio)
+    {
+        int ret = SDL_SetThreadPtrPriority(thread, SDL_THREAD_PRIORITY_LOW);
+        SDL_Log("----> SDL_SetThreadPriority(SDL_THREAD_PRIORITY_LOW):%d\n", ret);
+    }
+
     SDL_Delay(5 * 1000);
     SDL_Log("Waiting for thread #1\n");
     alive = 0;

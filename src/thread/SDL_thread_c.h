@@ -54,6 +54,7 @@ typedef enum SDL_ThreadState
 struct SDL_Thread
 {
     SDL_threadID threadid;
+    SDL_threadID kernel_threadid;
     SYS_ThreadHandle handle;
     int status;
     SDL_atomic_t state;  /* SDL_THREAD_STATE_* */
@@ -61,6 +62,7 @@ struct SDL_Thread
     char *name;
     size_t stacksize;  /* 0 for default, >0 for user-specified stack size. */
     void *data;
+    SDL_bool is_wrapped; /* TRUE if SDL_Thread struct created by SDL_CreateThreadWrapper. */
 };
 
 /* This is the function called to run a thread */

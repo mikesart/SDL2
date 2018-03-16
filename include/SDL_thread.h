@@ -43,7 +43,9 @@ extern "C" {
 
 /* The SDL thread structure, defined in SDL_thread.c */
 struct SDL_Thread;
+struct SDL_ThreadWrapper;
 typedef struct SDL_Thread SDL_Thread;
+typedef struct SDL_ThreadWrapper SDL_ThreadWrapper;
 
 /* The SDL thread ID */
 typedef unsigned long SDL_threadID;
@@ -189,6 +191,40 @@ extern DECLSPEC SDL_threadID SDLCALL SDL_GetThreadID(SDL_Thread * thread);
  *  Set the priority for the current thread
  */
 extern DECLSPEC int SDLCALL SDL_SetThreadPriority(SDL_ThreadPriority priority);
+
+/**
+ *  Get the priority for the current thread
+ */
+extern DECLSPEC int SDLCALL SDL_GetThreadPriority(SDL_ThreadPriority * priority);
+
+/**
+ *  Set the priority for a specified thread
+ */
+extern DECLSPEC int SDLCALL SDL_SetThreadPtrPriority(SDL_Thread * thread, SDL_ThreadPriority priority);
+
+/**
+ *  Get the priority for a specified thread.
+ */
+extern DECLSPEC int SDLCALL SDL_GetThreadPtrPriority(SDL_Thread * thread, SDL_ThreadPriority * priority);
+
+/**
+ *  Create a SDL thread wrapper structure for the current thread
+ *
+ *  Returns the created SDL thread structure, or NULL if create failed.
+ */
+extern DECLSPEC SDL_ThreadWrapper * SDLCALL SDL_CreateThreadWrapper();
+
+/**
+ * Free SDL thread wrapper
+ */
+extern DECLSPEC void SDLCALL SDL_FreeThreadWrapper(SDL_ThreadWrapper * threadwrapper);
+
+/**
+ * Get SDL_Thread pointer associated with SDL_ThreadWrapper.
+ *
+ * This can be used to get/set thread priorities of other threads.
+ */
+extern DECLSPEC SDL_Thread * SDLCALL SDL_GetThread(SDL_ThreadWrapper * threadwrapper);
 
 /**
  *  Wait for a thread to finish. Threads that haven't been detached will

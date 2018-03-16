@@ -39,7 +39,7 @@ SDL_SYS_CreateThread(SDL_Thread * thread, void *args)
 }
 
 void
-SDL_SYS_SetupThread(const char *name)
+SDL_SYS_SetupThread(SDL_Thread * thread)
 {
     return;
 }
@@ -51,9 +51,21 @@ SDL_ThreadID(void)
 }
 
 int
-SDL_SYS_SetThreadPriority(SDL_ThreadPriority priority)
+SDL_SYS_SetThreadPriority(SDL_Thread * thread, SDL_ThreadPriority priority)
 {
     return (0);
+}
+
+int
+SDL_SYS_GetThreadPriority(SDL_Thread * thread, SDL_ThreadPriority * priority)
+{
+    *priority = SDL_THREAD_PRIORITY_NORMAL;
+    return (0);
+}
+
+void
+SDL_SYS_SetupThreadWrapper(SDL_Thread * thread)
+{
 }
 
 void

@@ -63,7 +63,7 @@ SDL_SYS_CreateThread(SDL_Thread * thread, void *args)
 
 extern "C"
 void
-SDL_SYS_SetupThread(const char *name)
+SDL_SYS_SetupThread(SDL_Thread * thread)
 {
     // Make sure a thread ID gets assigned ASAP, for debugging purposes:
     SDL_ThreadID();
@@ -94,7 +94,7 @@ SDL_ThreadID(void)
 
 extern "C"
 int
-SDL_SYS_SetThreadPriority(SDL_ThreadPriority priority)
+SDL_SYS_SetThreadPriority(SDL_Thread * thread, SDL_ThreadPriority priority)
 {
     // Thread priorities do not look to be settable via C++11's thread
     // interface, at least as of this writing (Nov 2012).  std::thread does
@@ -109,6 +109,22 @@ SDL_SYS_SetThreadPriority(SDL_ThreadPriority priority)
     //
     // For compatibility sake, 0 will be returned here.
     return (0);
+}
+
+extern "C"
+int
+SDL_SYS_GetThreadPriority(SDL_Thread * thread, SDL_ThreadPriority * priority)
+{
+    *priority = SDL_THREAD_PRIORITY_NORMAL;
+    return (0);
+}
+
+extern "C"
+void
+SDL_SYS_SetupThreadWrapper(SDL_Thread * thread)
+{
+    // Assign thread ID for debugging purposes.
+    thread->threadid = SDL_ThreadID();
 }
 
 extern "C"

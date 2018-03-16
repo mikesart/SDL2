@@ -63,7 +63,7 @@ int SDL_SYS_CreateThread(SDL_Thread *thread, void *args)
     return 0;
 }
 
-void SDL_SYS_SetupThread(const char *name)
+void SDL_SYS_SetupThread(SDL_Thread * thread)
 {
     /* Do nothing. */
 }
@@ -90,9 +90,10 @@ void SDL_SYS_KillThread(SDL_Thread *thread)
     sceKernelTerminateDeleteThread(thread->handle);
 }
 
-int SDL_SYS_SetThreadPriority(SDL_ThreadPriority priority)
+int SDL_SYS_SetThreadPriority(SDL_Thread * thread, SDL_ThreadPriority priority)
 {
     int value;
+    SDL_ThreadID threadid = thread ? thread->threadid : SDL_threadID();
 
     if (priority == SDL_THREAD_PRIORITY_LOW) {
         value = 19;
@@ -102,8 +103,37 @@ int SDL_SYS_SetThreadPriority(SDL_ThreadPriority priority)
         value = 0;
     }
 
-    return sceKernelChangeThreadPriority(sceKernelGetThreadId(),value);
+    return sceKernelChangeThreadPriority(threadid, value);
 
+}
+
+int SDL_SYS_GetThreadPriority(SDL_Thread * thread, SDL_ThreadPriority * priority)
+{
+    int ret;
+    SDL_ThreadID threadid = thread ? thread->threadid : SDL_threadID();
+
+    SceKernelThreadInfo thread_info;
+    thread_info.size = sizeof(thread_info);
+
+    ret = sceKernelGetThreadInfo(threadid, &thread_info);
+    if (ret == 0) {
+        if (thread_info.currentPriority < 0)
+            *priority = SDL_THREAD_PRIORITY_HIGH;
+        else if (thread_info.currentPriority > 0)
+            *priority = SDL_THREAD_PRIORITY_LOW;
+        else
+            *priority = SDL_THREAD_PRIORITY_NORMAL;
+    } else {
+        *priority = SDL_THREAD_PRIORITY_NORMAL;
+    }
+
+    return (ret);
+}
+
+void SDL_SYS_SetupThreadWrapper(SDL_Thread * thread)
+{
+    thread->handle = sceKernelGetThreadId();
+    thread->threadid = SDL_ThreadID();
 }
 
 #endif /* SDL_THREAD_PSP */

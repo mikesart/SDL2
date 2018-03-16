@@ -168,8 +168,10 @@ typedef struct tagTHREADNAME_INFO
 typedef HRESULT (WINAPI *pfnSetThreadDescription)(HANDLE, PCWSTR);
 
 void
-SDL_SYS_SetupThread(const char *name)
+SDL_SYS_SetupThread(SDL_Thread * thread)
 {
+    const char * name = thread->name;
+
     if (name != NULL) {
         #ifndef __WINRT__   /* !!! FIXME: There's no LoadLibrary() in WinRT; don't know if SetThreadDescription is available there at all at the moment. */
         static pfnSetThreadDescription pSetThreadDescription = NULL;
@@ -223,9 +225,10 @@ SDL_ThreadID(void)
 }
 
 int
-SDL_SYS_SetThreadPriority(SDL_ThreadPriority priority)
+SDL_SYS_SetThreadPriority(SDL_Thread * thread, SDL_ThreadPriority priority)
 {
     int value;
+    HANDLE hthread = thread ? thread->handle : GetCurrentThread();
 
     if (priority == SDL_THREAD_PRIORITY_LOW) {
         value = THREAD_PRIORITY_LOWEST;
@@ -234,10 +237,39 @@ SDL_SYS_SetThreadPriority(SDL_ThreadPriority priority)
     } else {
         value = THREAD_PRIORITY_NORMAL;
     }
-    if (!SetThreadPriority(GetCurrentThread(), value)) {
+    if (!SetThreadPriority(hthread, value)) {
         return WIN_SetError("SetThreadPriority()");
     }
     return 0;
+}
+
+int
+SDL_SYS_GetThreadPriority(SDL_Thread * thread, SDL_ThreadPriority * priority)
+{
+    int prio;
+    HANDLE currentthread = thread ? thread->handle : GetCurrentThread();
+
+    prio = GetThreadPriority(hthread);
+    if (prio == THREAD_PRIORITY_ERROR_RETURN) {
+        *priority = SDL_THREAD_PRIORITY_NORMAL;
+        return WIN_SetError("GetThreadPriority()");
+    }
+
+    if(prio < THREAD_PRIORITY_NORMAL)
+        *priority = SDL_THREAD_PRIORITY_LOW;
+    else if (prio > THREAD_PRIORITY_NORMAL)
+        *priority = SDL_THREAD_PRIORITY_HIGH;
+    else
+        *priority = SDL_THREAD_PRIORITY_NORMAL;
+
+    return (0);
+}
+
+void
+SDL_SYS_SetupThreadWrapper(SDL_Thread * thread)
+{
+    thread->handle = GetCurrentThread();
+    thread->threadid = SDL_ThreadID();
 }
 
 void

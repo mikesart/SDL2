@@ -475,6 +475,12 @@
 #define SDL_ThreadID SDL_ThreadID_REAL
 #define SDL_GetThreadID SDL_GetThreadID_REAL
 #define SDL_SetThreadPriority SDL_SetThreadPriority_REAL
+#define SDL_GetThreadPriority SDL_GetThreadPriority_REAL
+#define SDL_SetThreadPtrPriority SDL_SetThreadPtrPriority_REAL
+#define SDL_GetThreadPtrPriority SDL_GetThreadPtrPriority_REAL
+#define SDL_CreateThreadWrapper SDL_CreateThreadWrapper_REAL
+#define SDL_FreeThreadWrapper SDL_FreeThreadWrapper_REAL
+#define SDL_GetThread SDL_GetThread_REAL
 #define SDL_WaitThread SDL_WaitThread_REAL
 #define SDL_DetachThread SDL_DetachThread_REAL
 #define SDL_TLSCreate SDL_TLSCreate_REAL

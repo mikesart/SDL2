@@ -109,7 +109,7 @@ SDL_SYS_CreateThread(SDL_Thread * thread, void *args)
         return SDL_SetError("Couldn't initialize pthread attributes");
     }
     pthread_attr_setdetachstate(&type, PTHREAD_CREATE_JOINABLE);
-    
+
     /* Set caller-requested stack size. Otherwise: use the system default. */
     if (thread->stacksize) {
         pthread_attr_setstacksize(&type, (size_t) thread->stacksize);
@@ -124,12 +124,13 @@ SDL_SYS_CreateThread(SDL_Thread * thread, void *args)
 }
 
 void
-SDL_SYS_SetupThread(const char *name)
+SDL_SYS_SetupThread(SDL_Thread * thread)
 {
 #if !defined(__NACL__)
     int i;
     sigset_t mask;
 #endif /* !__NACL__ */
+    const char * name = thread->name;
 
     if (name != NULL) {
         #if defined(__MACOSX__) || defined(__IPHONEOS__) || defined(__LINUX__)
@@ -157,6 +158,10 @@ SDL_SYS_SetupThread(const char *name)
             rename_thread(find_thread(NULL), namebuf);
         #endif
     }
+
+#ifdef __LINUX__
+    thread->kernel_threadid = syscall(SYS_gettid);
+#endif
 
    /* NativeClient does not yet support signals.*/
 #if !defined(__NACL__)
@@ -247,14 +252,14 @@ rtkit_setpriority(pid_t thread, int nice_level)
 #endif /* !SDL_USE_LIBDBUS */
 
 int
-SDL_SYS_SetThreadPriority(SDL_ThreadPriority priority)
+SDL_SYS_SetThreadPriority(SDL_Thread * thread, SDL_ThreadPriority priority)
 {
-#if __NACL__ 
+#if __NACL__
     /* FIXME: Setting thread priority does not seem to be supported in NACL */
     return 0;
 #elif __LINUX__
     int value;
-    pid_t threadid = syscall(SYS_gettid);
+    pid_t threadid = thread ? thread->kernel_threadid : syscall(SYS_gettid);
 
     if (priority == SDL_THREAD_PRIORITY_LOW) {
         value = 19;
@@ -284,9 +289,9 @@ SDL_SYS_SetThreadPriority(SDL_ThreadPriority priority)
 #else
     struct sched_param sched;
     int policy;
-    pthread_t thread = pthread_self();
+    pthread_t threadid = thread ? thread->handle : pthread_self();
 
-    if (pthread_getschedparam(thread, &policy, &sched) != 0) {
+    if (pthread_getschedparam(threadid, &policy, &sched) != 0) {
         return SDL_SetError("pthread_getschedparam() failed");
     }
     if (priority == SDL_THREAD_PRIORITY_LOW) {
@@ -298,11 +303,69 @@ SDL_SYS_SetThreadPriority(SDL_ThreadPriority priority)
         int max_priority = sched_get_priority_max(policy);
         sched.sched_priority = (min_priority + (max_priority - min_priority) / 2);
     }
-    if (pthread_setschedparam(thread, policy, &sched) != 0) {
+    if (pthread_setschedparam(threadid, policy, &sched) != 0) {
         return SDL_SetError("pthread_setschedparam() failed");
     }
     return 0;
 #endif /* linux */
+}
+
+void
+SDL_SYS_SetupThreadWrapper(SDL_Thread * thread)
+{
+    thread->handle = pthread_self();
+    thread->threadid = SDL_ThreadID();
+    thread->kernel_threadid = syscall(SYS_gettid);
+}
+
+int
+SDL_SYS_GetThreadPriority(SDL_Thread * thread, SDL_ThreadPriority * priority)
+{
+#if __NACL__
+    /* FIXME: Setting thread priority does not seem to be supported in NACL */
+    return (0);
+#elif __LINUX__
+    int prio;
+    pid_t threadid = thread ? thread->kernel_threadid : syscall(SYS_gettid);
+
+    errno = 0;
+    prio = getpriority(PRIO_PROCESS, threadid);
+    if (prio == -1 && errno != 0) {
+        *priority = SDL_THREAD_PRIORITY_NORMAL;
+        return SDL_SetError("getpriority() failed");
+    }
+
+    if (prio > 0)
+        *priority = SDL_THREAD_PRIORITY_LOW;
+    else if (prio < 0)
+        *priority = SDL_THREAD_PRIORITY_HIGH;
+    else
+        *priority = SDL_THREAD_PRIORITY_NORMAL;
+    return 0;
+#else
+    struct sched_param sched;
+    int prio;
+    int policy;
+    int min_priority;
+    int max_priority;
+    pthread_t threadid = thread ? thread->handle : pthread_self();
+
+    if (pthread_getschedparam(threadid, &policy, &sched) == 0) {
+        return SDL_SetError("pthread_getschedparam() failed");
+    }
+
+    min_priority = sched_get_priority_min(policy);
+    max_priority = sched_get_priority_max(policy);
+    prio = (min_priority + (max_priority - min_priority) / 2);
+
+    if (sched.sched_priority < prio)
+        *priority = SDL_THREAD_PRIORITY_LOW;
+    else if (sched.sched_priority > prio)
+        *priority = SDL_THREAD_PRIORITY_HIGH;
+    else
+        *priority = SDL_THREAD_PRIORITY_NORMAL;
+    return 0;
+#endif
 }
 
 void

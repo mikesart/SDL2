@@ -251,6 +251,32 @@ SDL_GetErrBuf(void)
     return errbuf;
 }
 
+static SDL_Thread *
+SDL_AllocThread()
+{
+    SDL_Thread * thread;
+
+    /* Allocate memory for the thread info structure */
+    thread = (SDL_Thread *) SDL_malloc(sizeof(*thread));
+    if (thread == NULL) {
+        SDL_OutOfMemory();
+        return (NULL);
+    }
+
+    SDL_zerop(thread);
+    thread->status = -1;
+
+    return thread;
+}
+
+static void
+SDL_FreeThread(SDL_Thread * thread)
+{
+    if (thread->name) {
+        SDL_free(thread->name);
+    }
+    SDL_free(thread);
+}
 
 /* Arguments and callback to setup and run the user thread function */
 typedef struct
@@ -271,7 +297,7 @@ SDL_RunThread(void *data)
     int *statusloc = &thread->status;
 
     /* Perform any system-dependent setup - this function may not fail */
-    SDL_SYS_SetupThread(thread->name);
+    SDL_SYS_SetupThread(thread);
 
     /* Get the thread id */
     thread->threadid = SDL_ThreadID();
@@ -289,10 +315,7 @@ SDL_RunThread(void *data)
     if (!SDL_AtomicCAS(&thread->state, SDL_THREAD_STATE_ALIVE, SDL_THREAD_STATE_ZOMBIE)) {
         /* Clean up if something already detached us. */
         if (SDL_AtomicCAS(&thread->state, SDL_THREAD_STATE_DETACHED, SDL_THREAD_STATE_CLEANED)) {
-            if (thread->name) {
-                SDL_free(thread->name);
-            }
-            SDL_free(thread);
+            SDL_FreeThread(thread);
         }
     }
 }
@@ -321,13 +344,11 @@ SDL_CreateThreadWithStackSize(int (SDLCALL * fn) (void *),
     int ret;
 
     /* Allocate memory for the thread info structure */
-    thread = (SDL_Thread *) SDL_malloc(sizeof(*thread));
+    thread = SDL_AllocThread();
     if (thread == NULL) {
-        SDL_OutOfMemory();
         return (NULL);
     }
-    SDL_zerop(thread);
-    thread->status = -1;
+
     SDL_AtomicSet(&thread->state, SDL_THREAD_STATE_ALIVE);
 
     /* Set up the arguments for the thread */
@@ -335,7 +356,7 @@ SDL_CreateThreadWithStackSize(int (SDLCALL * fn) (void *),
         thread->name = SDL_strdup(name);
         if (thread->name == NULL) {
             SDL_OutOfMemory();
-            SDL_free(thread);
+            SDL_FreeThread(thread);
             return (NULL);
         }
     }
@@ -355,10 +376,7 @@ SDL_CreateThreadWithStackSize(int (SDLCALL * fn) (void *),
     args->info = thread;
     args->wait = SDL_CreateSemaphore(0);
     if (args->wait == NULL) {
-        if (thread->name) {
-            SDL_free(thread->name);
-        }
-        SDL_free(thread);
+        SDL_FreeThread(thread);
         SDL_free(args);
         return (NULL);
     }
@@ -376,10 +394,7 @@ SDL_CreateThreadWithStackSize(int (SDLCALL * fn) (void *),
         SDL_SemWait(args->wait);
     } else {
         /* Oops, failed.  Gotta free everything */
-        if (thread->name) {
-            SDL_free(thread->name);
-        }
-        SDL_free(thread);
+        SDL_FreeThread(thread);
         thread = NULL;
     }
     SDL_DestroySemaphore(args->wait);
@@ -459,28 +474,47 @@ SDL_GetThreadName(SDL_Thread * thread)
 int
 SDL_SetThreadPriority(SDL_ThreadPriority priority)
 {
-    return SDL_SYS_SetThreadPriority(priority);
+    return SDL_SetThreadPtrPriority(NULL, priority);
+}
+
+int
+SDL_GetThreadPriority(SDL_ThreadPriority * priority)
+{
+    return SDL_GetThreadPtrPriority(NULL, priority);
+}
+
+int
+SDL_SetThreadPtrPriority(SDL_Thread * thread, SDL_ThreadPriority priority)
+{
+    return SDL_SYS_SetThreadPriority(thread, priority);
+}
+
+int
+SDL_GetThreadPtrPriority(SDL_Thread * thread, SDL_ThreadPriority * priority)
+{
+    if (!priority) {
+        return SDL_InvalidParamError("priority");
+    }
+
+    return SDL_SYS_GetThreadPriority(thread, priority);
 }
 
 void
 SDL_WaitThread(SDL_Thread * thread, int *status)
 {
-    if (thread) {
+    if (thread && !thread->is_wrapped) {
         SDL_SYS_WaitThread(thread);
         if (status) {
             *status = thread->status;
         }
-        if (thread->name) {
-            SDL_free(thread->name);
-        }
-        SDL_free(thread);
+        SDL_FreeThread(thread);
     }
 }
 
 void
 SDL_DetachThread(SDL_Thread * thread)
 {
-    if (!thread) {
+    if (!thread || thread->is_wrapped) {
         return;
     }
 
@@ -498,6 +532,32 @@ SDL_DetachThread(SDL_Thread * thread)
             SDL_assert(0 && "Unexpected thread state");
         }
     }
+}
+
+SDL_ThreadWrapper *
+SDL_CreateThreadWrapper()
+{
+    SDL_Thread * thread = SDL_AllocThread();
+
+    if (thread) {
+        thread->is_wrapped = SDL_TRUE;
+
+        SDL_SYS_SetupThreadWrapper(thread);
+    }
+
+    return (SDL_ThreadWrapper *)thread;
+}
+
+void
+SDL_FreeThreadWrapper(SDL_ThreadWrapper * threadwrapper)
+{
+    SDL_FreeThread((SDL_Thread *)threadwrapper);
+}
+
+SDL_Thread *
+SDL_GetThread(SDL_ThreadWrapper * threadwrapper)
+{
+    return (SDL_Thread *)threadwrapper;
 }
 
 /* vi: set ts=4 sw=4 expandtab: */
